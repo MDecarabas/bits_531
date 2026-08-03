@@ -6,7 +6,7 @@ authors = [
     ]
 
 channels = ["conda-forge"]
-name = "bits_instrument"
+name = "bits_531"
 platforms = ["linux-64"]
 version = "0.1.0"
 
@@ -61,7 +61,7 @@ apsbits = "==2.0.3"
 ophyd-async = { version = ">0.10.0", extras = ["ca", "pva"] }
 # Editable install of this instrument. This key MUST equal [project].name in
 # pyproject.toml; init_repo.sh renames both to the repository name on first push.
-bits_instrument = { path = ".", editable = true }
+bits_531 = { path = ".", editable = true }
 
 [feature.dev.dependencies]
 mypy = "*"

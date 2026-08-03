@@ -3,7 +3,7 @@ requires = [ "setuptools>=77.0",]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bits_instrument"
+name = "bits_531"
 version = "0.1.0"
 description = "BITS Instrument Package"
 readme = "README.md"
@@ -38,7 +38,7 @@ target-version = "py312"
 [project.optional-dependencies]
 dev = [ "build", "mypy", "pre-commit", "pytest", "ruff",]
 doc = [ "babel", "ipykernel", "jinja2", "markupsafe", "myst_parser", "nbsphinx", "pydata-sphinx-theme", "pygments-ipython-console", "pygments", "sphinx-design", "sphinx-tabs", "sphinx",]
-all = [ "bits_instrument[dev,doc]",]
+all = [ "bits_531[dev,doc]",]
 
 [project.urls]
 Homepage = "https://BCDA-APS.github.io/BITS/"
