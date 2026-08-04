@@ -1,0 +1,16 @@
+# Tiled client profile for the BL531 local Tiled server.
+#
+# Selected by configs/iconfig.yml (TILED_PROFILE_NAME: bl531): apsbits
+# init_catalog() calls tiled.client.from_profile("bl531") and returns this
+# client, which init_RE() then wraps in a TiledWriter automatically -- so no
+# Tiled client/writer is constructed in startup.py.
+#
+# The API key is NOT stored here (tiled's profile schema forbids it).  Supply it
+# at runtime via the TILED_API_KEY environment variable, which tiled's client
+# reads automatically.
+#
+# For tiled to find this profile, make this directory discoverable on tiled's
+# profile search path -- either point TILED_PROFILES at it, or copy this file
+# into <conda-env>/etc/tiled/profiles/.
+bl531:
+  uri: http://192.168.10.155:8000

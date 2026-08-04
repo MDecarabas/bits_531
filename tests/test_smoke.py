@@ -1,9 +1,10 @@
 """Smoke tests for the bits_531 BITS instrument package.
 
 The device/plan-structure tests run with no hardware or Tiled server.  The full
-``startup`` import (which subscribes a live ``TiledWriter``) is marked to skip
-unless a Tiled server is configured via ``BL531_TILED_URI`` +
-``TILED_SINGLE_USER_API_KEY``.
+``startup`` import resolves the ``bl531`` Tiled profile (iconfig
+``TILED_PROFILE_NAME``) and lets ``init_RE`` subscribe a ``TiledWriter``; it is
+marked to skip unless a reachable Tiled server is configured via ``TILED_PROFILES``
+(a directory holding the profile) + ``TILED_API_KEY``.
 """
 
 import os
@@ -43,13 +44,15 @@ def test_gisaxs_imports_without_network():
 
 
 @pytest.mark.skipif(
-    not (os.getenv("BL531_TILED_URI") and os.getenv("TILED_SINGLE_USER_API_KEY")),
-    reason="startup subscribes a live TiledWriter; needs BL531_TILED_URI + "
-    "TILED_SINGLE_USER_API_KEY pointing at a reachable Tiled server",
+    not (os.getenv("TILED_API_KEY") and os.getenv("TILED_PROFILES")),
+    reason="startup resolves the bl531 Tiled profile and init_RE subscribes a "
+    "TiledWriter; needs TILED_PROFILES (dir with the profile) + TILED_API_KEY "
+    "for a reachable Tiled server",
 )
 def test_startup_imports_and_sim_count_runs():
-    """Full startup imports and sim_count_plan runs end-to-end."""
+    """Full startup imports; sim_count_plan runs and is written to the catalog."""
     from bits_531.startup import RE
+    from bits_531.startup import cat
     from bits_531.startup import sd
     from bits_531.startup import sim_count_plan
 
@@ -57,3 +60,5 @@ def test_startup_imports_and_sim_count_runs():
     sd.baseline.clear()
     (uid,) = RE(sim_count_plan())
     assert isinstance(uid, str)
+    # The run was recorded in the catalog (the Tiled client when reachable).
+    assert cat[uid] is not None
