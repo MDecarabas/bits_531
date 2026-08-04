@@ -1,0 +1,9 @@
+# BL531 area detectors
+# Migrated from queue-server/startup_bl531/02_area_detectors.py. 
+
+bits_531.devices.BaslerDetector:
+  - {name: basler_camera, prefix: "BL531acA5427:", labels: ["area_detector", "detectors"]}
+bits_531.devices.My300kPilatusDetector:
+  - {name: det300k, prefix: "pilatus300k:", labels: ["area_detector", "detectors"]}
+bits_531.devices.My1MPilatusDetector:
+  - {name: det1M, prefix: "13PIL1:", labels: ["area_detector", "detectors"]}

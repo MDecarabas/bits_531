@@ -23,7 +23,6 @@ from apsbits.core.run_engine_init import init_RE
 from apsbits.core.session_setup import prepare_bits
 
 # Utility functions
-from apsbits.utils.aps_functions import host_on_aps_subnet
 from apsbits.utils.baseline_setup import setup_baseline_stream
 
 # Configuration functions
@@ -139,7 +138,15 @@ else:
     from bluesky import plans as bp  # noqa: F401
 
 # Experiment specific logic, device and plan loading. # Create the devices.
+# BL531 devices are split by category, mirroring the legacy startup_bl531/ files
+# (01_motors, 02_area_detectors, 03_fluorescent_detectors); devices.yml holds the
+# simulated devices used by the sim plans.  clear=False accumulates across files.
 make_devices(clear=False, file="devices.yml", device_manager=instrument)
+make_devices(clear=False, file="devices_motors.yml", device_manager=instrument)
+make_devices(clear=False, file="devices_area_detectors.yml", device_manager=instrument)
+make_devices(
+    clear=False, file="devices_fluorescent_detectors.yml", device_manager=instrument
+)
 
 # Setup baseline stream with connect=False is default
 # Devices with the label 'baseline' will be added to the baseline stream.

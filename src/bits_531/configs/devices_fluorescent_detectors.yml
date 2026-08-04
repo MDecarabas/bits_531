@@ -1,0 +1,8 @@
+# BL531 fluorescence detector
+#
+# Migrated from queue-server/startup_bl531/03_fluorescent_detectors.py.
+# MercuryDetector is intentionally excluded -- 
+# not an ophyd Device and unused by any plan
+
+bits_531.devices.SiliconDriftDetector:
+  - {name: amptek_fluo, prefix: "mcaTest:mca1", roi_low: 1800, roi_high: 2750, labels: ["detectors"]}
