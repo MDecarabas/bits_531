@@ -47,13 +47,6 @@ instrument_path = Path(__file__).parent
 iconfig_path = instrument_path / "configs" / "iconfig.yml"
 iconfig = load_config(iconfig_path)
 
-# Additional logging configuration
-# only needed if using different logging setup
-# from the one in the apsbits package
-extra_logging_configs_path = instrument_path / "configs" / "extra_logging.yml"
-configure_logging(extra_logging_configs_path=extra_logging_configs_path)
-
-
 logger = logging.getLogger(__name__)
 logger.info("Starting Instrument with iconfig: %s", iconfig_path)
 
@@ -64,7 +57,6 @@ instrument, oregistry = init_instrument("guarneri")
 oregistry.clear()
 
 # Configure the session with callbacks, devices, and plans.
-# aps_dm_setup(iconfig.get("DM_SETUP_FILE"))
 
 # Command-line tools, such as %wa, %ct, ...
 register_bluesky_magics()
