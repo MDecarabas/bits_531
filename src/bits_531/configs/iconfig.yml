@@ -5,12 +5,16 @@ ICONFIG_VERSION: 2.0.1
 
 # Add additional configuration for use with your instrument.
 
-### The databroker catalog name. (legacy use only)
+### The databroker catalog name. (used as the fallback if the Tiled profile
+### below is unreachable -- init_catalog() tries the Tiled profile first.)
 DATABROKER_CATALOG: temp
 ### Tiled server profile and path name: (overrides DATABROKER_CATALOG key)
-#TILED_PROFILE_NAME: raw
-# Use TILED_PATH_NAME according to local tiled server configuration
-#TILED_PATH_NAME: /raw
+### init_catalog() returns this Tiled client and init_RE() wraps it in a
+### TiledWriter, so BL531's document streaming is configured here (not in
+### startup.py).  The profile is defined in configs/tiled_profiles/bl531.yml
+### (uri only); the API key comes from the TILED_API_KEY environment variable.
+TILED_PROFILE_NAME: bl531
+# Writer targets the server root (parity with startup_bl531)
 
 ### RunEngine configuration
 RUN_ENGINE:
@@ -53,12 +57,6 @@ BEC:
 NEXUS_DATA_FILES:
     ENABLE: false
     FILE_EXTENSION: hdf
-
-SPEC_DATA_FILES:
-    # Disabled for BL531 parity: the legacy startup_bl531/00_base.py did not run
-    # a SPEC file writer.  Enable if SPEC .dat output is later desired.
-    ENABLE: false
-    FILE_EXTENSION: dat
 
 ### APS Data Management
 ### Learn environment variables for Data Management from this file:

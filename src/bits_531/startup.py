@@ -11,7 +11,6 @@ Includes:
 
 # Standard Library Imports
 import logging
-import os
 from pathlib import Path
 
 # Core Functions
@@ -30,10 +29,6 @@ from apsbits.utils.config_loaders import load_config
 from apsbits.utils.helper_functions import register_bluesky_magics
 from apsbits.utils.helper_functions import running_in_queueserver
 from apsbits.utils.logging_setup import configure_logging
-
-# Tiled document writer (stream Bluesky documents to the BL531 Tiled server)
-from bluesky_tiled_plugins import TiledWriter
-from tiled.client import from_uri
 
 # Run first so we get better diagnostics about subsequent problems
 configure_logging()
@@ -66,45 +61,15 @@ bec, peaks = init_bec_peaks(iconfig)
 cat = init_catalog(iconfig)
 RE, sd = init_RE(iconfig, subscribers=[bec, cat])
 
-# --- BL531 local Tiled writer (ported from startup_bl531/00_base.py) ---
-# Stream every run's documents to the BL531 Tiled server.  The URI defaults to
-# the beamline's local Tiled and may be overridden (for testing on another host)
-# via BL531_TILED_URI; the API key is required via TILED_SINGLE_USER_API_KEY
-# (same guard as the legacy startup).
-tiled_uri = os.getenv("BL531_TILED_URI", "http://192.168.10.155:8000")
-tiled_api_key = os.getenv("TILED_SINGLE_USER_API_KEY")
-if not tiled_api_key:
-    raise ValueError("TILED_SINGLE_USER_API_KEY environment variable is not set.")
-tiled_client = from_uri(tiled_uri, api_key=tiled_api_key)
-RE.subscribe(TiledWriter(tiled_client, batch_size=1))
-
-# Per-run access tagging is OFF, matching the current legacy runtime (the tag is
-# commented out in 00_base.py).  The modern TiledWriter reads `tiled_access_tags`
-# from the start document, so BL531 access control can be enabled with one line:
-#     RE.md["tiled_access_tags"] = ["5.3.1"]
-#
-# The central ALS Tiled writer is likewise left off (parity with 00_base.py; the
-# legacy CENTRAL_API_KEY requirement is intentionally NOT ported since the writer
-# it guarded is disabled).  To enable it, patch resource paths and subscribe a
-# second writer:
-#     LOCAL_PATH_PREFIX = "mnt/data531"
-#     CENTRAL_PATH_PREFIX = "/global/beegfs/beamlines/bl531/raw"
-#     def patch_ride_filenames(doc):
-#         rp = doc.get("resource_path", "")
-#         if rp.startswith(LOCAL_PATH_PREFIX):
-#             doc["resource_path"] = os.path.join(
-#                 CENTRAL_PATH_PREFIX, rp[len(LOCAL_PATH_PREFIX) :].lstrip("/")
-#             )
-#         return doc
-#     central_client = from_uri(
-#         "https://tiled.computing.als.lbl.gov/api/v1/metadata/beamlines/bl531/raw",
-#         api_key=os.getenv("CENTRAL_API_KEY"),
-#     )
-#     RE.subscribe(
-#         TiledWriter(
-#             central_client, batch_size=1, patches={"resource": patch_ride_filenames}
-#         )
-#     )
+# --- BL531 Tiled writer ---
+# Configured via configs/iconfig.yml (TILED_PROFILE_NAME: bl531) + the tiled
+# profile in configs/tiled_profiles/bl531.yml + the TILED_API_KEY env var:
+# init_catalog() above returned the Tiled client as `cat`, and init_RE() wrapped
+# it in a TiledWriter(batch_size=1) and subscribed it -- so nothing to construct
+# here.  Per-run access tagging stays OFF (legacy parity); enable it with
+# RE.md["tiled_access_tags"] = ["5.3.1"] or via RUN_ENGINE.DEFAULT_METADATA in
+# iconfig.  A second (central ALS) writer can't be expressed through init_catalog
+# and would need an explicit RE.subscribe(TiledWriter(...)) here.
 
 # Optional Nexus callback block
 # delete this block if not using Nexus
@@ -113,27 +78,44 @@ if iconfig.get("NEXUS_DATA_FILES", {}).get("ENABLE", False):
 
     nxwriter = nxwriter_init(RE, iconfig)
 
-# Optional SPEC callback block
-# delete this block if not using SPEC
-if iconfig.get("SPEC_DATA_FILES", {}).get("ENABLE", False):
-    from .callbacks.demo_spec_callback import init_specwriter_with_RE
-    from .callbacks.demo_spec_callback import newSpecFile  # noqa: F401
-    from .callbacks.demo_spec_callback import spec_comment  # noqa: F401
-
-    specwriter = init_specwriter_with_RE(RE, iconfig)  # noqa: F811
-
 # These imports must come after the above setup.
 # Queue server block
 if running_in_queueserver():
     ### To make all the standard plans available in QS, import by '*', otherwise import
     ### plan by plan.
-    from apstools.plans import lineup2  # noqa: F401
-    from bluesky.plans import *  # noqa: F403
+    # from bluesky.plans import *  # noqa: F403
+    from bluesky.plans import adaptive_scan as _adaptive_scan  # noqa: F401
+    from bluesky.plans import count  # noqa: F401
+    from bluesky.plans import fly as _fly  # noqa: F401
+    from bluesky.plans import grid_scan as _grid_scan  # noqa: F401
+    from bluesky.plans import inner_product_scan as _inner_product_scan  # noqa: F401
+    from bluesky.plans import list_grid_scan as _list_grid_scan  # noqa: F401
+    from bluesky.plans import list_scan as _list_scan  # noqa: F401
+    from bluesky.plans import log_scan as _log_scan  # noqa: F401
+    from bluesky.plans import ramp_plan as _ramp_plan  # noqa: F401
+    from bluesky.plans import rel_adaptive_scan as _rel_adaptive_scan  # noqa: F401
+    from bluesky.plans import rel_grid_scan as _rel_grid_scan  # noqa: F401
+    from bluesky.plans import rel_list_grid_scan as _rel_list_grid_scan  # noqa: F401
+    from bluesky.plans import rel_list_scan as _rel_list_scan  # noqa: F401
+    from bluesky.plans import rel_log_scan as _rel_log_scan  # noqa: F401
+    from bluesky.plans import rel_scan as _rel_scan  # noqa: F401
+    from bluesky.plans import rel_spiral as _rel_spiral  # noqa: F401
+    from bluesky.plans import rel_spiral_fermat as _rel_spiral_fermat  # noqa: F401
+    from bluesky.plans import rel_spiral_square as _rel_spiral_square  # noqa: F401
+    from bluesky.plans import (
+        relative_inner_product_scan as _relative_inner_product_scan,  # noqa: F401
+    )
+    from bluesky.plans import scan as _scan  # noqa: F401
+    from bluesky.plans import scan_nd as _scan_nd  # noqa: F401
+    from bluesky.plans import spiral as _spiral  # noqa: F401
+    from bluesky.plans import spiral_fermat as _spiral_fermat  # noqa: F401
+    from bluesky.plans import spiral_square as _spiral_square  # noqa: F401
+    from bluesky.plans import tune_centroid as _tune_centroid  # noqa: F401
+    from bluesky.plans import tweak as _tweak  # noqa: F401
+    from bluesky.plans import x2x_scan as _x2x_scan  # noqa: F401
+
 else:
     # Import bluesky plans and stubs with prefixes set by common conventions.
-    # The apstools plans and utils are imported by '*'.
-    from apstools.plans import *  # noqa: F403
-    from apstools.utils import *  # noqa: F403
     from bluesky import plan_stubs as bps  # noqa: F401
     from bluesky import plans as bp  # noqa: F401
 
