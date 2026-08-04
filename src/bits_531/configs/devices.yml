@@ -1,0 +1,65 @@
+# BL531 device configuration (guarneri loader).
+#
+# Migrated from queue-server/startup_bl531/{01_motors,02_area_detectors,
+# 03_fluorescent_detectors}.py.  Each top-level key is the dotted import path of
+# a device class; every list item is a flat mapping of constructor keywords
+# (guarneri calls Klass(**item) with no positional args).  Notes:
+#   * A bare EpicsSignal takes `read_pv:`, not `prefix:`.
+#   * Pseudopositioners / hexapod axes bake full PVs into their Components, so
+#     they take an explicit empty `prefix: ""`.
+#   * Devices with the "baseline" label are picked up by setup_baseline_stream()
+#     (reproducing the legacy `sd.baseline` list).
+
+# --- simulated devices (kept so the BITS sim plans still run with no IOC) ---
+apsbits.utils.sim_creator.predefined_device:
+  - {creator: ophyd.sim.motor, name: sim_motor}
+  - {creator: ophyd.sim.noisy_det, name: sim_det}
+
+# --- detectors / signals ---
+ophyd.EpicsSignal:
+  - {name: diode, read_pv: "bl201-beamstop:current", labels: ["detectors", "baseline"]}
+
+# --- simple motors (01_motors.py) ---
+ophyd.EpicsMotor:
+  - {name: diode_x_mm, prefix: "bl531_xps2:beamstop_x_mm", labels: ["motor"]}
+  - {name: diode_y_mm, prefix: "bl531_xps2:beamstop_y_mm", labels: ["motor"]}
+  - {name: mono_angle_deg, prefix: "bl531_xps1:mono_angle_deg", labels: ["motor"]}
+  - {name: sampleJack, prefix: "bl531_xps1:es_height_mm", labels: ["motor", "baseline"]}
+
+# --- hexapod axes (01_motors.py) — full PVs baked in, empty prefix ---
+bits_531.devices.HexapodAxisTx:
+  - {name: hexapod_motor_Tx, prefix: "", labels: ["motor", "baseline"]}
+bits_531.devices.HexapodAxisTy:
+  - {name: hexapod_motor_Ty, prefix: "", labels: ["motor", "baseline"]}
+bits_531.devices.HexapodAxisTz:
+  - {name: hexapod_motor_Tz, prefix: "", labels: ["motor", "baseline"]}
+bits_531.devices.HexapodAxisRx:
+  - {name: hexapod_motor_Rx, prefix: "", labels: ["motor", "baseline"]}
+bits_531.devices.HexapodAxisRy:
+  - {name: hexapod_motor_Ry, prefix: "", labels: ["motor", "baseline"]}
+bits_531.devices.HexapodAxisRz:
+  - {name: hexapod_motor_Rz, prefix: "", labels: ["motor", "baseline"]}
+
+# --- monochromator (01_motors.py) ---
+bits_531.devices.MonoEnergy:
+  - {name: mono_energy, prefix: "", labels: ["motor", "baseline"]}
+bits_531.devices.MonoAngleOffset:
+  - {name: mono_angle_offset, labels: ["baseline"]}
+
+# --- grazing incidence + shutter (01_motors.py) ---
+bits_531.devices.GrazingIncidenceAngle:
+  - {name: gi_angle, prefix: "", ref_angle: 0.0, labels: ["motor", "baseline"]}
+bits_531.devices.Shutter:
+  - {name: shutter, prefix: "bl531:LJT4:1:", labels: ["shutter"]}
+
+# --- fluorescence detector (03_fluorescent_detectors.py) ---
+bits_531.devices.SiliconDriftDetector:
+  - {name: amptek_fluo, prefix: "mcaTest:mca1", roi_low: 1800, roi_high: 2750, labels: ["detectors"]}
+
+# --- area detectors (02_area_detectors.py) ---
+bits_531.devices.BaslerDetector:
+  - {name: basler_camera, prefix: "BL531acA5427:", labels: ["area_detector", "detectors"]}
+bits_531.devices.My300kPilatusDetector:
+  - {name: det300k, prefix: "pilatus300k:", labels: ["area_detector", "detectors"]}
+bits_531.devices.My1MPilatusDetector:
+  - {name: det1M, prefix: "13PIL1:", labels: ["area_detector", "detectors"]}

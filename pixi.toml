@@ -86,7 +86,7 @@ myst-parser = ">=4.0.1,<5"
 # TODO: after `create-bits <name>`, replace `instrument` below with that name.
 # create-bits scaffolds the module at src/<name>/, the qserver config at
 # src/<name>/qserver/qs-config.yml, and the host script at scripts/<name>_qs_host.sh.
-start = { cmd = "ipython -i -c 'from instrument.startup import *'", env = { MPLBACKEND = "qt5agg" } }
-qs_host = "scripts/instrument_qs_host.sh"
-qs_restart = "scripts/instrument_qs_host.sh restart"
-qs_start_manager = { cmd = "start-re-manager --config=./qs-config.yml", cwd = "src/instrument/qserver" }
+start = { cmd = "ipython -i -c 'from bits_531.startup import *'", env = { MPLBACKEND = "qt5agg" } }
+qs_host = "scripts/bits_531_qs_host.sh"
+qs_restart = "scripts/bits_531_qs_host.sh restart"
+qs_start_manager = { cmd = "start-re-manager --config=./qs-config.yml", cwd = "src/bits_531/qserver" }
