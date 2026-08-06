@@ -37,6 +37,5 @@ startup:
     user_group_permissions_path: ./
 
 worker:
-    use_ipython_kernel: true
-    # ipython_kernel_ip: auto
+    ipython_kernel_ip: auto
     ipython_matplotlib: qt5
