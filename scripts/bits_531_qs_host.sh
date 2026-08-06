@@ -1,22 +1,45 @@
 #!/bin/bash
-# file: qs_host.sh
-# Manage the bluesky queueserver host process.
-# Could be in a screen session or run as a direct process.
+# file: bits_531_qs_host.sh
+# Manage the bluesky queueserver host processes for bits_531.
+#
+# Starts/stops BOTH:
+#   * the RE Manager (start-re-manager, ZMQ control 60615 / info 60625), and
+#   * the bluesky-httpserver REST gateway (:60610) that the finch browser uses.
+# Each runs in its own named `screen` session so they come up / go down together.
+#
+# Process detection uses screen SESSION NAMES (see screen_alive/screen_quit),
+# which works on macOS and Linux.  The previous version detected the process via
+# /proc/<pid>/cwd, which does not exist on macOS -- so `stop` could never find and
+# kill the process there.
 
 SHELL_SCRIPT_NAME=${BASH_SOURCE:-${0}}
-SCRIPT_DIR="$(dirname $(readlink -f  "${SHELL_SCRIPT_NAME}"))"
+SCRIPT_DIR="$(dirname "$(readlink -f "${SHELL_SCRIPT_NAME}")")"
 CONFIGS_DIR=$(readlink -f "${SCRIPT_DIR}/../src/bits_531/configs")
 QSERVER_DIR=$(readlink -f "${SCRIPT_DIR}/../src/bits_531/qserver")
 ###-----------------------------
 ### Change program defaults here
 
-# Instrument configuration YAML file with databroker catalog name.
+# Instrument configuration YAML (holds TILED_PROFILE_NAME / DATABROKER_CATALOG).
 ICONFIG_YML="${CONFIGS_DIR}/iconfig.yml"
 
 # Bluesky queueserver configuration YAML file.
-# This file contains the definition of 'redis_addr'.  (default: localhost:6379)
+# Defines redis_addr, ZMQ addrs, startup_module: bits_531.startup, keep_re, ...
 # "export" is for BITS to identify when QS is running.
 export QS_CONFIG_YML="${QSERVER_DIR}/qs-config.yml"
+
+# --- HTTP gateway (bluesky-httpserver) settings ------------------------------
+# The finch browser talks REST to this gateway; the RE Manager itself is ZMQ-only.
+# All of these may be overridden from the environment (e.g. by finch-stack).
+HTTP_HOST="${QSERVER_HTTP_SERVER_HOST:-localhost}"
+HTTP_PORT="${QSERVER_HTTP_SERVER_PORT:-60610}"
+HTTP_API_KEY="${QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY:-test}"
+# CORS: the finch browser origin(s) MUST be allowed or the UI's requests are
+# refused.  Default suits local dev; on the beamline export the real origins,
+# e.g. QSERVER_HTTP_SERVER_ALLOW_ORIGINS="http://192.168.10.155:5173 http://localhost:5173".
+HTTP_ALLOW_ORIGINS="${QSERVER_HTTP_SERVER_ALLOW_ORIGINS:-http://localhost:5173}"
+# Where the gateway reaches the RE Manager's ZMQ control port (qs-config: 60615).
+HTTP_ZMQ_CONTROL_ADDR="${QSERVER_ZMQ_CONTROL_ADDRESS:-tcp://localhost:60615}"
+HTTP_STARTUP_COMMAND="uvicorn bluesky_httpserver.server:app --host ${HTTP_HOST} --port ${HTTP_PORT}"
 
 # Host name (from $hostname) where the queueserver host process runs.
 # QS_HOSTNAME=amber.xray.aps.anl.gov  # if a specific host is required
@@ -28,8 +51,7 @@ STARTUP_COMMAND="${PROCESS} --config=${QS_CONFIG_YML} --user-group-permissions=$
 #--------------------
 # internal configuration below
 
-# echo "PROCESS=${PROCESS}"
-if [ ! -f $(which "${PROCESS}") ]; then
+if [ ! -f "$(which "${PROCESS}")" ]; then
     echo "PROCESS '${PROCESS}': file not found. CONDA_PREFIX='${CONDA_PREFIX}'"
     exit 1
 fi
@@ -39,23 +61,26 @@ if [ -z "$STARTUP_DIR" ] ; then
     STARTUP_DIR="${SCRIPT_DIR}"
 fi
 
-# Prefer Tiled profile name if provided; otherwise fall back to the legacy
-# databroker catalog selection.
-#
-# - TILED_PROFILE_NAME: name of a Tiled profile (preferred)
-# - DATABROKER_CATALOG: legacy env var used by older scripts/configs
-if [[ -n "${TILED_PROFILE_NAME:-}" ]]; then
-  DEFAULT_SESSION_NAME="bluesky_queueserver-${TILED_PROFILE_NAME}"
-elif [[ -n "${DATABROKER_CATALOG:-}" ]]; then
-  DEFAULT_SESSION_NAME="bluesky_queueserver-${DATABROKER_CATALOG}"
-else
-  DEFAULT_SESSION_NAME="bluesky_queueserver-default"
-fi
+# Session-name suffix.  Prefer the Tiled profile, then the databroker catalog
+# (this is the databroker -> Tiled change kept from the current bits_531 script),
+# checking the environment first and falling back to iconfig.yml.
+iconfig_get() {  # $1 = key name
+    [ -f "${ICONFIG_YML}" ] || return 0
+    grep -E "^[[:space:]]*${1}:" "${ICONFIG_YML}" | head -1 | awk '{print $NF}'
+}
+QS_SUFFIX="${TILED_PROFILE_NAME:-}"
+[ -z "${QS_SUFFIX}" ] && QS_SUFFIX="${DATABROKER_CATALOG:-}"
+[ -z "${QS_SUFFIX}" ] && QS_SUFFIX="$(iconfig_get TILED_PROFILE_NAME)"
+[ -z "${QS_SUFFIX}" ] && QS_SUFFIX="$(iconfig_get DATABROKER_CATALOG)"
+QS_SUFFIX="${QS_SUFFIX:-default}"
+
+DEFAULT_SESSION_NAME="bluesky_queueserver-${QS_SUFFIX}"
 
 #--------------------
 
 SELECTION=${1:-usage}
 SESSION_NAME=${2:-"${DEFAULT_SESSION_NAME}"}
+HTTP_SESSION_NAME="bluesky-httpserver-${QS_SUFFIX}"
 
 # But other management commands will fail if mismatch
 if [ "$(hostname)" != "${QS_HOSTNAME}" ]; then
@@ -64,158 +89,133 @@ if [ "$(hostname)" != "${QS_HOSTNAME}" ]; then
 fi
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Portable process management via screen session names (macOS + Linux).
 
-# echo "SESSION_NAME = ${SESSION_NAME}"
-# echo "SHELL_SCRIPT_NAME = ${SHELL_SCRIPT_NAME}"
-# echo "STARTUP_COMMAND = ${STARTUP_COMMAND}"
-# echo "STARTUP_DIR = ${STARTUP_DIR}"
+function screen_alive() {  # $1 = screen session name
+    screen -ls 2>/dev/null | grep -qE "[0-9]+\.${1}[[:space:]]"
+}
+
+function screen_quit() {  # $1 = screen session name
+    screen -S "${1}" -X quit >/dev/null 2>&1
+}
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-function checkpid() {
-    # Assume the process is down until proven otherwise
-    PROCESS_DOWN=1
-
-    MY_UID=$(id -u)
-    # The '\$' is needed in the pgrep pattern to select vm7, but not vm7.sh
-    MY_PID=$(ps -u | grep "${PROCESS}")
-    #!echo "MY_PID=${MY_PID}"
-    SCREEN_SESSION="${MY_PID}.${SESSION_NAME}"
-
-    if [ "${MY_PID}" != "" ] ; then
-        SCREEN_PID="${MY_PID}"
-
-        # At least one instance of the process is running;
-        # Find the binary that is associated with this process
-        for pid in ${MY_PID}; do
-            # compare directories
-            BIN_CWD=$(readlink "/proc/${pid}/cwd")
-            START_CWD=$(readlink -f "${STARTUP_DIR}")
-
-            if [ "$BIN_CWD" = "$START_CWD" ] ; then
-                # The process is running with PID=$pid from $STARTUP_DIR
-                P_PID=$(ps -p "${pid}" -o ppid=)
-                # strip leading (and trailing) whitespace
-                arr=($P_PID)
-                P_PID=${arr[0]}
-                SCREEN_SESSION="${P_PID}.${SESSION_NAME}"
-                SCREEN_MATCH=$(screen -ls "${SCREEN_SESSION}" | grep "${SESSION_NAME}")
-                if [ "${SCREEN_MATCH}" != "" ] ; then
-                    # process is running in screen
-                    PROCESS_DOWN=0
-                    MY_PID=${pid}
-                    SCREEN_PID=${P_PID}
-                    break
-                fi
-            fi
-        done
-    else
-        # process is not running
-        PROCESS_DOWN=1
-    fi
-
-    return ${PROCESS_DOWN}
-}
-
-function checkup () {
-    if ! checkpid; then
-        restart
-    fi
-}
-
-function console () {
-    if checkpid; then
-        echo "Connecting to ${SCREEN_SESSION}'s screen session"
-        # The -r flag will only connect if no one is attached to the session
-        #!screen -r "${SESSION_NAME}"
-        # The -x flag will connect even if someone is attached to the session
-        screen -x "${SCREEN_SESSION}"
-    else
-        echo "${SCREEN_NAME} is not running"
-    fi
-}
-
-function exit_if_running() {
-    # ensure that multiple, simultaneous processes are not started by this user ID
-    MY_UID=$(id -u)
-    MY_PID=$(pgrep "${SESSION_NAME}"\$ -u "${MY_UID}")
-
-    if [ "" != "${MY_PID}" ] ; then
-        echo "${SESSION_NAME} is already running (PID=${MY_PID}), won't start a new one"
+function start() {
+    if [ ! -f "${CONDA_EXE}" ]; then
+        echo "No 'conda' command available."
         exit 1
+    fi
+
+    if screen_alive "${SESSION_NAME}"; then
+        echo "${SESSION_NAME} is already running"
+    else
+        echo "Starting ${SESSION_NAME}"
+        cd "${STARTUP_DIR}" || exit 1
+        # Run the RE Manager inside a detached screen session
+        screen -DmS "${SESSION_NAME}" -h 5000 ${STARTUP_COMMAND} &
+    fi
+
+    if screen_alive "${HTTP_SESSION_NAME}"; then
+        echo "${HTTP_SESSION_NAME} is already running"
+    else
+        echo "Starting ${HTTP_SESSION_NAME} on ${HTTP_HOST}:${HTTP_PORT}"
+        QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY="${HTTP_API_KEY}" \
+        QSERVER_HTTP_SERVER_ALLOW_ORIGINS="${HTTP_ALLOW_ORIGINS}" \
+        QSERVER_ZMQ_CONTROL_ADDRESS="${HTTP_ZMQ_CONTROL_ADDR}" \
+        screen -DmS "${HTTP_SESSION_NAME}" -h 5000 ${HTTP_STARTUP_COMMAND} &
+    fi
+}
+
+function stop() {
+    local found=1
+    if screen_alive "${SESSION_NAME}"; then
+        echo "Stopping ${SESSION_NAME}"
+        screen_quit "${SESSION_NAME}"
+        found=0
+    fi
+    if screen_alive "${HTTP_SESSION_NAME}"; then
+        echo "Stopping ${HTTP_SESSION_NAME}"
+        screen_quit "${HTTP_SESSION_NAME}"
+        found=0
+    fi
+    if [ "${found}" != "0" ]; then
+        echo "${SESSION_NAME} is not running"
     fi
 }
 
 function restart() {
     stop
-    sleep 0.1  # empirical, 0.01 is too short, 1.0 is plenty.
+    sleep 0.5  # let the ZMQ/HTTP ports free before restarting
     start
 }
 
+function checkup () {
+    if ! screen_alive "${SESSION_NAME}"; then
+        restart
+    fi
+}
+
+function console () {
+    if screen_alive "${SESSION_NAME}"; then
+        echo "Attaching to ${SESSION_NAME} (detach with Ctrl-a d)"
+        # -x attaches even if another terminal is already attached
+        screen -x "${SESSION_NAME}"
+    else
+        echo "${SESSION_NAME} is not running"
+    fi
+}
+
 function run_process() {
-    # only use this for diagnostic purposes
-    exit_if_running
-    cd "${STARTUP_DIR}"
+    # Diagnostic only: run the RE Manager in the foreground (no screen, no HTTP).
+    if screen_alive "${SESSION_NAME}"; then
+        echo "${SESSION_NAME} is already running, won't start a new one"
+        exit 1
+    fi
+    cd "${STARTUP_DIR}" || exit 1
     ${STARTUP_COMMAND}
 }
 
-function screenpid() {
-    if [ -z "${SCREEN_PID}" ] ; then
-        echo
-    else
-        echo " in a screen session (pid=${SCREEN_PID})"
-    fi
-}
-
-function start() {
-    if checkpid; then
-        echo -n "${SCREEN_SESSION} is already running (pid=${MY_PID})"
-        screenpid
-    else
-        if [ ! -f "${CONDA_EXE}" ]; then
-            echo "No 'conda' command available."
-            exit 1
-        fi
-        echo "Starting ${SESSION_NAME}"
-        cd "${STARTUP_DIR}"
-        # Run SESSION_NAME inside a screen session
-        CMD="screen -DmS ${SESSION_NAME} -h 5000 ${STARTUP_COMMAND}"
-        ${CMD} &
-    fi
+function run_http() {
+    # Run the bluesky-httpserver REST gateway in the foreground (for a tmux
+    # pane).  It talks to the RE Manager over ZMQ; the finch browser talks to it.
+    QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY="${HTTP_API_KEY}" \
+    QSERVER_HTTP_SERVER_ALLOW_ORIGINS="${HTTP_ALLOW_ORIGINS}" \
+    QSERVER_ZMQ_CONTROL_ADDRESS="${HTTP_ZMQ_CONTROL_ADDR}" \
+    ${HTTP_STARTUP_COMMAND}
 }
 
 function status() {
-    if checkpid; then
-        echo -n "${SCREEN_SESSION} is running (pid=${MY_PID})"
-        screenpid
+    if screen_alive "${SESSION_NAME}"; then
+        echo "${SESSION_NAME} is running"
     else
         echo "${SESSION_NAME} is not running"
     fi
-}
-
-function stop() {
-    if checkpid; then
-        echo "Stopping ${SCREEN_SESSION} (pid=${MY_PID})"
-        kill "${MY_PID}"
+    if screen_alive "${HTTP_SESSION_NAME}"; then
+        echo "${HTTP_SESSION_NAME} is running"
     else
-        echo "${SESSION_NAME} is not running"
+        echo "${HTTP_SESSION_NAME} is not running"
     fi
 }
 
 function usage() {
     echo "Usage: $(basename "${SHELL_SCRIPT_NAME}") {start|stop|restart|status|checkup|console|run} [NAME]"
     echo ""
+    echo "    Manages BOTH the RE Manager (ZMQ) and the bluesky-httpserver REST"
+    echo "    gateway (:${HTTP_PORT}) in named screen sessions."
+    echo ""
     echo "    COMMANDS"
-    echo "        console   attach to process console if process is running in screen"
-    echo "        checkup   check that process is running, restart if not"
-    echo "        restart   restart process"
-    echo "        run       run process in console (not screen)"
-    echo "        start     start process"
-    echo "        status    report if process is running"
-    echo "        stop      stop process"
+    echo "        console   attach to the RE Manager screen session"
+    echo "        checkup   restart the RE Manager if it is not running"
+    echo "        restart   restart both processes"
+    echo "        http      run only the HTTP gateway in the foreground (for a tmux pane)"
+    echo "        run       run only the RE Manager in the foreground (tmux pane / diagnostic; no HTTP)"
+    echo "        start     start both processes (screen)"
+    echo "        status    report whether both processes are running"
+    echo "        stop      stop both processes"
     echo ""
     echo "    OPTIONAL TERMS"
-    echo "        NAME      name of process (default: ${DEFAULT_SESSION_NAME})"
+    echo "        NAME      RE Manager screen session name (default: ${DEFAULT_SESSION_NAME})"
 }
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -228,6 +228,7 @@ case ${SELECTION} in
     checkup) checkup ;;
     console) console ;;
     run) run_process ;;
+    http) run_http ;;
     *) usage ;;
 esac
 
