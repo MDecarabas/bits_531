@@ -14,6 +14,9 @@ import logging
 import os
 from pathlib import Path
 
+#bluesky imports
+import ophyd
+
 # Core Functions
 from apsbits.core.best_effort_init import init_bec_peaks
 from apsbits.core.catalog_init import init_catalog
@@ -94,6 +97,10 @@ if running_in_queueserver():
     ### To make all the standard plans available in QS, import by '*', otherwise import
     ### plan by plan.
     # from bluesky.plans import *  # noqa: F403
+    # diode = ophyd.EpicsSignal('bl201-beamstop:current', name='diode')
+
+
+
     from bluesky.plans import adaptive_scan as _adaptive_scan  # noqa: F401
     from bluesky.plans import count  # noqa: F401
     from bluesky.plans import fly as _fly  # noqa: F401
@@ -118,7 +125,7 @@ if running_in_queueserver():
     from bluesky.plans import scan as _scan  # noqa: F401
     from bluesky.plans import scan_nd as _scan_nd  # noqa: F401
     from bluesky.plans import spiral as _spiral  # noqa: F401
-    from bluesky.plans import spiral_fermat as _spiral_fermat  # noqa: F401
+    from bluesky.plans import spiral_fermat as spiral_fermat  # noqa: F401
     from bluesky.plans import spiral_square as _spiral_square  # noqa: F401
     from bluesky.plans import tune_centroid as _tune_centroid  # noqa: F401
     from bluesky.plans import tweak as _tweak  # noqa: F401
@@ -140,10 +147,10 @@ make_devices(clear=False, file="devices_motors.yml", device_manager=instrument)
 # make_devices(
 #     clear=False, file="devices_fluorescent_detectors.yml", device_manager=instrument
 # )
-
+# diode_two = ophyd.EpicsSignal('bl201-beamstop:current', name='diode')
 # Setup baseline stream with connect=False is default
 # Devices with the label 'baseline' will be added to the baseline stream.
-# setup_baseline_stream(sd, oregistry, connect=False)
+setup_baseline_stream(sd, oregistry, connect=True)
 
 # BL531 plans (ported from startup_bl531/*.py).  Imported by name so the
 # queueserver registers them; these override any same-named bluesky.plans
