@@ -126,6 +126,7 @@ if running_in_queueserver():
 
 else:
     # Import bluesky plans and stubs with prefixes set by common conventions.
+    from apstools.utils import *
     from bluesky import plan_stubs as bps  # noqa: F401
     from bluesky import plans as bp  # noqa: F401
 
