@@ -13,7 +13,7 @@ DATABROKER_CATALOG: temp
 ### TiledWriter, so BL531's document streaming is configured here (not in
 ### startup.py).  The profile is defined in configs/tiled_profiles/bl531.yml
 ### (uri only); the API key comes from the TILED_API_KEY environment variable.
-TILED_PROFILE_NAME: bl531
+# TILED_PROFILE_NAME: bl531
 # Writer targets the server root (parity with startup_bl531)
 
 ### RunEngine configuration

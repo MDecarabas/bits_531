@@ -126,5 +126,9 @@ start-re-manager --config=./qs-config.yml
 ```
 
 
-find "$CONDA_PREFIX" /usr/lib -name "libqxcb.so" 2>/dev/null
-ldd <path-from-above>/libqxcb.so | grep "not found"
+Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome. Use QT_QPA_PLATFORM=wayland to run on Wayland anyway.
+qt.qpa.plugin: Could not load the Qt platform plugin "xcb" in "" even though it was found.
+This application failed to start because no Qt platform plugin could be initialized. Reinstalling the application may fix this problem.
+
+Available platform plugins are: eglfs, linuxfb, minimal, minimalegl, offscreen, vnc, wayland-egl, wayland, wayland-xcomposite-egl, wayland-xcomposite-glx, webgl, xcb.
+
