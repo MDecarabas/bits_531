@@ -38,4 +38,9 @@ startup:
 
 worker:
     ipython_kernel_ip: auto
-    ipython_matplotlib: qt5
+    # Headless queueserver -> non-GUI matplotlib backend.  "qt5" makes the IPython
+    # worker run `%matplotlib qt5`, which loads Qt's xcb platform plugin; on the
+    # beamline host (no $DISPLAY / no xcb libs) that fails with "Could not load the
+    # Qt platform plugin xcb" when the worker environment opens.  Plots are off
+    # anyway (iconfig.yml BEC.PLOTS: false), so no GUI backend is needed.
+    ipython_matplotlib: agg
