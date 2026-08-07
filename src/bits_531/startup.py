@@ -11,6 +11,7 @@ Includes:
 
 # Standard Library Imports
 import logging
+import os
 from pathlib import Path
 
 # Core Functions
@@ -29,6 +30,8 @@ from apsbits.utils.config_loaders import load_config
 from apsbits.utils.helper_functions import register_bluesky_magics
 from apsbits.utils.helper_functions import running_in_queueserver
 from apsbits.utils.logging_setup import configure_logging
+from bluesky_tiled_plugins import TiledWriter
+from tiled.client import from_uri
 
 # Run first so we get better diagnostics about subsequent problems
 configure_logging()
@@ -60,6 +63,13 @@ register_bluesky_magics()
 bec, peaks = init_bec_peaks(iconfig)
 cat = init_catalog(iconfig)
 RE, sd = init_RE(iconfig, subscribers=[bec, cat])
+
+api_key = os.getenv("TILED_SINGLE_USER_API_KEY")
+if not api_key:
+    raise ValueError("TILED_SINGLE_USER_API_KEY environment variable is not set.")
+tiled_client = from_uri("http://192.168.10.155:8000", api_key=api_key)
+tw = TiledWriter(tiled_client, batch_size=1)
+RE.subscribe(tw)
 
 # --- BL531 Tiled writer ---
 # Configured via configs/iconfig.yml (TILED_PROFILE_NAME: bl531) + the tiled
@@ -125,29 +135,29 @@ else:
 # simulated devices used by the sim plans.  clear=False accumulates across files.
 make_devices(clear=False, file="devices.yml", device_manager=instrument)
 make_devices(clear=False, file="devices_motors.yml", device_manager=instrument)
-make_devices(clear=False, file="devices_area_detectors.yml", device_manager=instrument)
-make_devices(
-    clear=False, file="devices_fluorescent_detectors.yml", device_manager=instrument
-)
+# make_devices(clear=False, file="devices_area_detectors.yml", device_manager=instrument)
+# make_devices(
+#     clear=False, file="devices_fluorescent_detectors.yml", device_manager=instrument
+# )
 
 # Setup baseline stream with connect=False is default
 # Devices with the label 'baseline' will be added to the baseline stream.
-setup_baseline_stream(sd, oregistry, connect=False)
+# setup_baseline_stream(sd, oregistry, connect=False)
 
 # BL531 plans (ported from startup_bl531/*.py).  Imported by name so the
 # queueserver registers them; these override any same-named bluesky.plans
 # imports so the finch UI gets the annotated BL531 versions.
-from .plans.gisaxs import automatic_diode_alignment  # noqa: E402, F401
-from .plans.gisaxs import automatic_gisaxs_alignment  # noqa: E402, F401
-from .plans.gisaxs import gisaxs_height_scan  # noqa: E402, F401
-from .plans.gisaxs import gisaxs_th_scan  # noqa: E402, F401
-from .plans.scans import angle_scan  # noqa: E402, F401
-from .plans.scans import energy_scan  # noqa: E402, F401
-from .plans.scans import energy_scan_ui  # noqa: E402, F401
-from .plans.scans import grid_scan  # noqa: E402, F401
-from .plans.scans import rel_scan  # noqa: E402, F401
-from .plans.scans import scan  # noqa: E402, F401
+# from .plans.gisaxs import automatic_diode_alignment  # noqa: E402, F401
+# from .plans.gisaxs import automatic_gisaxs_alignment  # noqa: E402, F401
+# from .plans.gisaxs import gisaxs_height_scan  # noqa: E402, F401
+# from .plans.gisaxs import gisaxs_th_scan  # noqa: E402, F401
+# from .plans.scans import angle_scan  # noqa: E402, F401
+# from .plans.scans import energy_scan  # noqa: E402, F401
+# from .plans.scans import energy_scan_ui  # noqa: E402, F401
+# from .plans.scans import grid_scan  # noqa: E402, F401
+# from .plans.scans import rel_scan  # noqa: E402, F401
+# from .plans.scans import scan  # noqa: E402, F401
 from .plans.sim_plans import sim_count_plan  # noqa: E402, F401
 from .plans.sim_plans import sim_print_plan  # noqa: E402, F401
 from .plans.sim_plans import sim_rel_scan_plan  # noqa: E402, F401
-from .plans.xas import xas_scan  # noqa: E402, F401
+# from .plans.xas import xas_scan  # noqa: E402, F401

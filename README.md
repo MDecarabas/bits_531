@@ -124,3 +124,10 @@ subdirectory.
 cd ./src/YOUR_INSTRUMENT_NAME/qserver
 start-re-manager --config=./qs-config.yml
 ```
+
+
+Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome. Use QT_QPA_PLATFORM=wayland to run on Wayland anyway.                                                                                 │
+qt.qpa.plugin: Could not load the Qt platform plugin "xcb" in "" even though it was found.                                                                                                 │
+This application failed to start because no Qt platform plugin could be initialized. Reinstalling the application may fix this problem.                                                    │
+                                                                                                                                                                                           │
+Available platform plugins are: eglfs, linuxfb, minimal, minimalegl, offscreen, vnc, wayland-egl, wayland, wayland-xcomposite-egl, wayland-xcomposite-glx, webgl, xcb.
